@@ -1,0 +1,14 @@
+{
+ "remotes": [
+  {
+   "name": "conan-center",
+   "url": "https://conan.bintray.com",
+   "verify_ssl": true
+  },
+  {
+   "name": "piponazo",
+   "url": "https://api.bintray.com/conan/piponazo/piponazo",
+   "verify_ssl": true
+  }
+ ]
+}
