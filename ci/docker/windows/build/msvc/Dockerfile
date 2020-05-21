@@ -50,6 +50,6 @@ ENV PIPENV_CACHE_DIR=c:\pipenv_cache `
 RUN python -m pip install --upgrade pip ; `
     pip install --upgrade setuptools ; `
     pip install wheel pipenv sphinx tox mypy lxml pytest flake8 pytest-cov pytest-bdd conan
-#
+RUN conan remote add piponazo https://api.bintray.com/conan/piponazo/piponazo
 ADD requirements.txt c:/temp/
 RUN cd c:\temp ; pip install -r requirements.txt
