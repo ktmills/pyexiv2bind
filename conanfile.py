@@ -17,6 +17,7 @@ class Exiv2BindConan(ConanFile):
         self.copy("*.dll", dst="bin", src="bin") # From bin to bin
         self.copy("*.dylib*", dst="bin", src="lib") # From lib to bin
         self.copy("*.a", dst="lib", src="lib")
+        self.copy("*.lib", dst="lib", src="lib")
         self.copy("*", dst="include", src="include") # From lib to bin
     #
     # def configure(self):

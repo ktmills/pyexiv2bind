@@ -44,12 +44,14 @@ class Exiv2Conan(Command):
             os.path.abspath(os.path.dirname(__file__))
         ]
 
-        build_ext_cmd.include_dirs.append(
-            os.path.abspath(os.path.join(build_dir, "include"))
-        )
-        build_ext_cmd.library_dirs.append(
-            os.path.abspath(os.path.join(build_dir, "lib"))
-        )
+        for extension in build_ext_cmd.extensions:
+            extension.include_dirs.append(
+                os.path.abspath(os.path.join(build_dir, "include"))
+            )
+            extension.library_dirs.append(
+                os.path.abspath(os.path.join(build_dir, "lib"))
+            )
+
         subprocess.check_call(install_command, cwd=build_dir)
 
 
@@ -167,6 +169,8 @@ exiv2_extension = Extension(
         "exiv2",
         "xmp",
         "expat",
+        "zlib",
+        "Shell32"
     ],
     include_dirs=[
         "py3exiv2bind/core/glue"
