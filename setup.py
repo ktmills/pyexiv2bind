@@ -89,6 +89,8 @@ class BuildExiv2Ext(build_ext):
             ext.extra_compile_args.append("-std=c++14")
         else:
             ext.extra_compile_args.append("/std:c++14")
+            ext.libraries.append("Shell32")
+            ext.libraries.append("zlib")
 
         missing = self.find_missing_libraries(ext)
 
@@ -169,8 +171,6 @@ exiv2_extension = Extension(
         "exiv2",
         "xmp",
         "expat",
-        "zlib",
-        "Shell32"
     ],
     include_dirs=[
         "py3exiv2bind/core/glue"
