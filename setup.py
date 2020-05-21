@@ -1,200 +1,175 @@
 import os
 import sys
 import shutil
-from setuptools import setup, Extension
+from setuptools import setup, Extension, Command
 from setuptools.command.build_ext import build_ext
 import platform
 import subprocess
 import sysconfig
-from ctypes.util import find_library
-# CMAKE = shutil.which("cmake")
+from urllib import request
+import tarfile
 PACKAGE_NAME = "py3exiv2bind"
+PYBIND11_DEFAULT_URL = \
+    "https://github.com/pybind/pybind11/archive/v2.5.0.tar.gz"
 
 
-class CMakeExtension(Extension):
-    def __init__(self, name, sources=None, language=None):
-        # don't invoke the original build_ext for this special extension
-        super().__init__(name,
-                         sources=sources if sources is not None else [],
-                         language=language)
-
-
-class BuildCMakeExt(build_ext):
-    user_options = build_ext.user_options + [
-        ('cmake-exec=', None,
-         "Location of CMake. Defaults of CMake located on path")
+class Exiv2Conan(Command):
+    user_options = [
+        ('conan-exec=', "c", 'conan executable')
     ]
-    @property
-    def package_dir(self):
-        build_py = self.get_finalized_command('build_py')
-        return build_py.get_package_dir(PACKAGE_NAME)
+
+    description = "Get the required dependencies from a Conan package manager"
+
+    def initialize_options(self):
+        self.conan_exec = None
+
+    def finalize_options(self):
+        if self.conan_exec is None:
+            self.conan_exec = shutil.which("conan")
+            if self.conan_exec is None:
+                raise Exception("missing conan_exec")
+
+    def run(self):
+        clib_cmd = self.get_finalized_command("build_clib")
+        build_ext_cmd = self.get_finalized_command("build_ext")
+        build_dir = clib_cmd.build_temp
+        if not os.path.exists(build_dir):
+            os.makedirs(build_dir)
+        install_command = [
+            self.conan_exec,
+            "install",
+            "--build",
+            "missing",
+            "-if", os.path.abspath(build_dir),
+            os.path.abspath(os.path.dirname(__file__))
+        ]
+
+        build_ext_cmd.include_dirs.append(
+            os.path.abspath(os.path.join(build_dir, "include"))
+        )
+        build_ext_cmd.library_dirs.append(
+            os.path.abspath(os.path.join(build_dir, "lib"))
+        )
+        subprocess.check_call(install_command, cwd=build_dir)
+
+
+class BuildExiv2Ext(build_ext):
+    user_options = build_ext.user_options + [
+        ('pybind11-url=', None,
+         "Url to download Pybind11")
+    ]
 
     def initialize_options(self):
         super().initialize_options()
-        self.cmake_exec = shutil.which("cmake")
-        pass
-
-    def __init__(self, dist):
-        super().__init__(dist)
-        self.extra_cmake_options = []
+        self.pybind11_url = None
 
     def finalize_options(self):
+        self.pybind11_url = self.pybind11_url or PYBIND11_DEFAULT_URL
         super().finalize_options()
 
-        if self.cmake_exec is None:
-
-            raise Exception("CMake path not located on path")
-
-        if not os.path.exists(self.cmake_exec):
-            raise Exception("CMake path not located at {}".format(self.cmake_exec))
-
-    @staticmethod
-    def get_build_generator_name():
-        python_compiler = platform.python_compiler()
-
-        if "GCC" in python_compiler:
-            python_compiler = "GCC"
-
-        if "Clang" in python_compiler:
-            python_compiler = "Clang"
-
-        cmake_build_systems_lut = {
-            'MSC v.1900 64 bit (AMD64)': "Visual Studio 14 2015 Win64",
-            'MSC v.1900 32 bit (Intel)': "Visual Studio 14 2015",
-            'MSC v.1915 64 bit (AMD64)': "Visual Studio 14 2015 Win64",
-            'MSC v.1915 32 bit (Intel)': "Visual Studio 14 2015",
-            'MSC v.1916 64 bit (AMD64)': "Visual Studio 14 2015 Win64",
-            'MSC v.1916 32 bit (Intel)': "Visual Studio 14 2015",
-            'GCC': "Unix Makefiles",
-            'Clang': "Unix Makefiles",
-        }
-
-        return cmake_build_systems_lut[python_compiler]
-
     def run(self):
-        for extension in self.extensions:
-            self.build_extension(extension)
+        pybind11_include_path = self.get_pybind11_include_path()
+
+        if pybind11_include_path is not None:
+            self.include_dirs.append(pybind11_include_path)
+
+        super().run()
+
+    def find_missing_libraries(self, ext):
+        missing_libs = []
+        for lib in ext.libraries:
+            if self.compiler.find_library_file(self.library_dirs, lib) is None:
+                missing_libs.append(lib)
+        return missing_libs
 
     def build_extension(self, ext):
-        self.configure_cmake(ext)
-        self.build_cmake(ext)
-        self.build_install_cmake(ext)
+        missing = self.find_missing_libraries(ext)
 
-    def configure_cmake(self, extension: Extension):
-        source_dir = os.path.abspath(os.path.dirname(__file__))
+        if len(missing) > 0:
+            self.announce(f"missing required deps [{', '.join(missing)}]. "
+                          f"Trying to get them with conan", 5)
+            self.run_command("build_conan")
+            ext.include_dirs.append(os.path.abspath(os.path.join(self.build_temp, "include")))
+            ext.library_dirs.append(os.path.abspath(os.path.join(self.build_temp, "lib")))
+            # self.compiler.find_library_file(
+            #     [os.path.join(], "exiv2")
 
-        self.announce("Configuring CMake Project", level=3)
-        os.makedirs(self.build_temp, exist_ok=True)
+            # self.build_extension(ext)
+            # return
+            # missing = self.find_missing_libraries(ext)
+            # if len(missing) > 0:
+            #     print("I qiuote")
+            #     exit(1)
+        super().build_extension(ext)
 
-        if self.debug:
-            build_configuration_name = 'Debug'
-        else:
-            build_configuration_name = 'Release'
+    def get_pybind11_include_path(self):
+        pybind11_archive_filename = os.path.split(self.pybind11_url)[1]
 
-        configure_command = [
-            self.cmake_exec,
-            f'-H{source_dir}',
-            f'-B{self.build_temp}',
-            # f'-G{self.get_build_generator_name()}'
-        ]
+        pybind11_archive_downloaded = os.path.join(self.build_temp,
+                                                   pybind11_archive_filename)
 
-        package_source = os.path.join(source_dir, "py3exiv2bind")
+        pybind11_source = os.path.join(self.build_temp, "pybind11")
+        if not os.path.exists(self.build_temp):
+            os.makedirs(self.build_temp)
 
-        if self.inplace == 1:
-            configure_command.append(
-                f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{build_configuration_name.upper()}={package_source}')
+        if not os.path.exists(pybind11_source):
+            if not os.path.exists(pybind11_archive_downloaded):
+                self.announce("Downloading pybind11", level=5)
+                request.urlretrieve(
+                    self.pybind11_url, filename=pybind11_archive_downloaded)
+                self.announce("pybind11 Downloaded", level=5)
+            with tarfile.open(pybind11_archive_downloaded, "r") as tf:
+                for f in tf:
+                    if "pybind11.h" in f.name:
+                        self.announce(
+                            f"Extract pybind11.h to include path")
 
-        configure_command.append(
-            f'-DCMAKE_BUILD_TYPE={build_configuration_name}')
-
-        configure_command.append(f'-DCMAKE_INSTALL_PREFIX={self.build_lib}')
-        configure_command.append(f'-DPYTHON_EXECUTABLE:FILEPATH={sys.executable}')
-        # configure_command.append(f'-DPYTHON_LIBRARY={os.path.join(sys.exec_prefix, "Scripts")}')
-        configure_command.append(f'-DPYTHON_INCLUDE_DIR={sysconfig.get_path("include")}')
-        # configure_command.append(f'-DPYTHON_INCLUDE_DIR={os.path.join(sys.exec_prefix, "Scripts")}')
-        configure_command.append(f'-DPython_ADDITIONAL_VERSIONS={sys.version_info.major}.{sys.version_info.minor}')
-
-        configure_command += self.extra_cmake_options
-
-        if sys.gettrace():
-            print("Running as a debug", file=sys.stderr)
-            subprocess.check_call(configure_command)
-        else:
-            self.spawn(configure_command)
-        # self.spawn(configure_command)
-
-    def build_cmake(self, extension: Extension):
-
-        build_command = [
-            self.cmake_exec,
-            "--build",
-            self.build_temp,
-        ]
-
-        self.announce("Building binaries", level=3)
-
-        # Add config
-        build_command.append("--config")
-        if self.debug:
-            build_command.append("Debug")
-        else:
-            build_command.append("Release")
-
-        if self.parallel:
-            build_command.extend(["-j", str(self.parallel)])
-
-        if "Visual Studio" in self.get_build_generator_name():
-            build_command += ["--", "/NOLOGO", "/verbosity:minimal"]
-
-        if sys.gettrace():
-            subprocess.check_call(build_command)
-        else:
-            self.spawn(build_command)
-
-    def build_install_cmake(self, extension: Extension):
-
-        install_command = [
-            self.cmake_exec,
-            "--build", self.build_temp
-        ]
-
-        self.announce("Adding binaries to Python build path", level=3)
-
-        install_command.append("--config")
-        if self.debug:
-            install_command.append("Debug")
-        else:
-            install_command.append("Release")
-
-        install_command += ["--target", "install"]
-
-        if self.parallel:
-            install_command.extend(["-j", str(self.parallel)])
-
-        if "Visual Studio" in self.get_build_generator_name():
-            install_command += ["--", "/NOLOGO", "/verbosity:quiet"]
-
-        if sys.gettrace():
-            print("Running as a debug", file=sys.stderr)
-            subprocess.check_call(install_command)
-        else:
-            self.spawn(install_command)
+                    tf.extract(f, pybind11_source)
+        for root, dirs, files in os.walk(pybind11_source):
+            for f in files:
+                if f == "pybind11.h":
+                    return os.path.relpath(
+                        os.path.join(root, ".."),
+                        os.path.dirname(__file__)
+                    )
 
 
-class Exiv2Ext(BuildCMakeExt):
+# class Exiv2Ext(BuildCMakeExt):
+#
+#     def __init__(self, dist):
+#         super().__init__(dist)
+#         self.extra_cmake_options += [
+#             "-Dpyexiv2bind_generate_venv:BOOL=OFF",
+#             "-DBUILD_SHARED_LIBS:BOOL=OFF",
+#             # "-DEXIV2_VERSION_TAG:STRING=11e66c6c9eceeddd2263c3591af6317cbd05c1b6",
+#             "-DEXIV2_VERSION_TAG:STRING=0.27",
+#             "-DBUILD_TESTING:BOOL=OFF",
+#         ]
 
-    def __init__(self, dist):
-        super().__init__(dist)
-        self.extra_cmake_options += [
-            "-Dpyexiv2bind_generate_venv:BOOL=OFF",
-            "-DBUILD_SHARED_LIBS:BOOL=OFF",
-            # "-DEXIV2_VERSION_TAG:STRING=11e66c6c9eceeddd2263c3591af6317cbd05c1b6",
-            "-DEXIV2_VERSION_TAG:STRING=0.27",
-            "-DBUILD_TESTING:BOOL=OFF",
-        ]
 
+exiv2_extension = Extension(
+    "py3exiv2bind.core",
+    sources=[
+        "py3exiv2bind/core/core.cpp",
+        "py3exiv2bind/core/glue/ExifStrategy.cpp",
+        "py3exiv2bind/core/glue/glue.cpp",
+        "py3exiv2bind/core/glue/Image.cpp",
+        "py3exiv2bind/core/glue/IPTC_Strategy.cpp",
+        "py3exiv2bind/core/glue/XmpStrategy.cpp",
+        "py3exiv2bind/core/glue/MetadataProcessor.cpp",
+    ],
+    libraries=[
+        "exiv2",
+        "xmp",
+        "expat",
+    ],
+    include_dirs=[
+        "py3exiv2bind/core/glue"
+    ],
+    language='c++',
+    extra_compile_args=['-std=c++14'],
 
-exiv2_extension = CMakeExtension("exiv2_wrapper")
+)
 
 setup(
     packages=['py3exiv2bind'],
@@ -204,7 +179,8 @@ setup(
     tests_require=['pytest'],
     ext_modules=[exiv2_extension],
     cmdclass={
-        "build_ext": Exiv2Ext,
+        "build_ext": BuildExiv2Ext,
+        "build_conan": Exiv2Conan
     },
 
 )
