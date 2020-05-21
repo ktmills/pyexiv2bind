@@ -52,8 +52,12 @@ ENV CONAN_COLOR_DISPLAY=0 CONAN_NON_INTERACTIVE=1 CONAN_USER_HOME=${CONAN_USER_H
 
 RUN python -m pip install --upgrade pip ; `
     pip install --upgrade setuptools ; `
+    pip install six==1.14 ; `
     pip install wheel pipenv sphinx tox mypy lxml pytest flake8 pytest-cov pytest-bdd conan
 ADD ci/docker/shared/conan/remotes.json ${CONAN_USER_HOME}/.conan/remotes.json
+COPY conanfile.py C:/TEMP/
+RUN conan install C:/TEMP/ --build  missing --no-import ;`
+    conan remove * -b --src -f
 
 ADD requirements.txt c:/temp/
 RUN cd c:\temp ; pip install -r requirements.txt
