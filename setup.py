@@ -83,6 +83,11 @@ class BuildExiv2Ext(build_ext):
         return missing_libs
 
     def build_extension(self, ext):
+        if self.compiler.compiler_type == "unix":
+            ext.extra_compile_args.append("-std=c++14")
+        else:
+            ext.extra_compile_args.append("/std:c++14")
+
         missing = self.find_missing_libraries(ext)
 
         if len(missing) > 0:
@@ -167,7 +172,7 @@ exiv2_extension = Extension(
         "py3exiv2bind/core/glue"
     ],
     language='c++',
-    extra_compile_args=['-std=c++14'],
+    # extra_compile_args=['-std=c++14'],
 
 )
 
