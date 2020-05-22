@@ -211,7 +211,7 @@ pipeline {
                     }
                     steps {
                         bat "if not exist logs mkdir logs"
-                        bat "python setup.py build -b build -j${env.NUMBER_OF_PROCESSORS} --build-lib build/lib/ --build-temp build/temp build_ext --inplace"
+                        bat "python setup.py build_conan build -b build -j${env.NUMBER_OF_PROCESSORS} --build-lib build/lib/ --build-temp build/temp build_ext --inplace"
                     }
                     post{
                         success{
