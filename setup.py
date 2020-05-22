@@ -53,6 +53,7 @@ class Exiv2Conan(Command):
         ]
         conanbuildinfo_file = self.getConanBuildInfo(os.path.abspath(build_dir))
         if conanbuildinfo_file is not None:
+            self.announce(f"Reading from {conanbuildinfo_file}", 5)
             with open(conanbuildinfo_file) as f:
                 conan_build_info = json.loads(f.read())
 
