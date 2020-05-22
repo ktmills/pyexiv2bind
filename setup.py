@@ -66,7 +66,7 @@ class Exiv2Conan(Command):
             for dep in conan_build_info['dependencies']:
                 extension.include_dirs += dep['include_paths']
                 extension.library_dirs += dep['lib_paths']
-                extension.libraries.append(dep['name'])
+                extension.libraries += dep['libs']
 
 
 class BuildExiv2Ext(build_ext):
