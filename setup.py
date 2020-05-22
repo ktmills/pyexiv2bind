@@ -67,6 +67,7 @@ class Exiv2Conan(Command):
                 extension.include_dirs += dep['include_paths']
                 extension.library_dirs += dep['lib_paths']
                 extension.libraries += dep['libs']
+                extension.define_macros += [(d,) for d in dep['defines']]
 
 
 class BuildExiv2Ext(build_ext):
@@ -104,7 +105,6 @@ class BuildExiv2Ext(build_ext):
         else:
             ext.extra_compile_args.append("/std:c++14")
             ext.libraries.append("Shell32")
-            ext.libraries.append("zlib")
 
         missing = self.find_missing_libraries(ext)
 
