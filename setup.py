@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import shutil
@@ -29,6 +30,13 @@ class Exiv2Conan(Command):
             if self.conan_exec is None:
                 raise Exception("missing conan_exec")
 
+    def getConanBuildInfo(self, root_dir):
+        for root, dirs, files in os.walk(root_dir):
+            for f in files:
+                if f == "conanbuildinfo.json":
+                    return os.path.join(root, f)
+        return None
+
     def run(self):
         clib_cmd = self.get_finalized_command("build_clib")
         build_ext_cmd = self.get_finalized_command("build_ext")
@@ -43,14 +51,16 @@ class Exiv2Conan(Command):
             "-if", os.path.abspath(build_dir),
             os.path.abspath(os.path.dirname(__file__))
         ]
+        conanbuildinfo_file = self.getConanBuildInfo(os.path.abspath(build_dir))
+        if conanbuildinfo_file is not None:
+            with open(conanbuildinfo_file) as f:
+                conan_build_info = json.loads(f.read())
 
-        for extension in build_ext_cmd.extensions:
-            extension.include_dirs.append(
-                os.path.abspath(os.path.join(build_dir, "include"))
-            )
-            extension.library_dirs.append(
-                os.path.abspath(os.path.join(build_dir, "lib"))
-            )
+            for extension in build_ext_cmd.extensions:
+                for dep in conan_build_info['dependencies']:
+                    extension.include_dirs += dep['include_paths']
+                    extension.library_dirs += dep['lib_paths']
+                    extension.libraries.append(dep['name'])
 
         subprocess.check_call(install_command, cwd=build_dir)
 
@@ -169,8 +179,9 @@ exiv2_extension = Extension(
     ],
     libraries=[
         "exiv2",
-        "xmp",
-        "expat",
+        # "xmp",
+        # "expat",
+        # "z",
     ],
     include_dirs=[
         "py3exiv2bind/core/glue"
