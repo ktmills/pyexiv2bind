@@ -183,7 +183,7 @@ exiv2_extension = Extension(
     ],
     libraries=[
         "exiv2",
-        # "xmp",
+        "xmp",
         # "expat",
         # "z",
     ],
