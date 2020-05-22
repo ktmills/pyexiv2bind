@@ -38,20 +38,23 @@ class Exiv2Conan(Command):
         return None
 
     def run(self):
-        clib_cmd = self.get_finalized_command("build_clib")
         build_ext_cmd = self.get_finalized_command("build_ext")
-        build_dir = clib_cmd.build_temp
+        build_dir = build_ext_cmd.build_temp
         if not os.path.exists(build_dir):
             os.makedirs(build_dir)
+        build_dir_full_path = os.path.abspath(build_dir)
         install_command = [
             self.conan_exec,
             "install",
             "--build",
             "missing",
-            "-if", os.path.abspath(build_dir),
+            "-if", build_dir_full_path,
             os.path.abspath(os.path.dirname(__file__))
         ]
-        conanbuildinfo_file = self.getConanBuildInfo(os.path.abspath(build_dir))
+
+        subprocess.check_call(install_command, cwd=build_dir)
+
+        conanbuildinfo_file = self.getConanBuildInfo(build_dir_full_path)
         if conanbuildinfo_file is None:
             raise FileNotFoundError("Unable to locate conanbuildinfo.json")
 
@@ -64,8 +67,6 @@ class Exiv2Conan(Command):
                 extension.include_dirs += dep['include_paths']
                 extension.library_dirs += dep['lib_paths']
                 extension.libraries.append(dep['name'])
-
-        subprocess.check_call(install_command, cwd=build_dir)
 
 
 class BuildExiv2Ext(build_ext):
