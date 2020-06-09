@@ -456,7 +456,7 @@ pipeline {
                     }
                     steps {
                         sh( '''mkdir -p logs
-                              python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace | tee logs/python_build.log
+                              python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace 2>&1 | tee logs/python_build.log
                         ''')
                     }
                     post{
