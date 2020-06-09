@@ -455,9 +455,9 @@ pipeline {
                         timeout(10)
                     }
                     steps {
-                        sh '''mkdir -p logs
+                        sh( '''mkdir -p logs
                               python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace | tee logs/python_build.log
-                        '''
+                        ''')
                     }
                     post{
                         success{
@@ -465,7 +465,7 @@ pipeline {
                         }
                         always{
                             recordIssues(tools: [gcc(pattern: 'logs/python_build.log')])
-                       }
+                        }
                         failure{
                             cleanWs(
                                 deleteDirs: true,
@@ -981,6 +981,7 @@ devpi upload --from-dir dist --clientdir ${WORKSPACE}/devpi"""
                                     script: """devpi use https://devpi.library.illinois.edu --clientdir ${WORKSPACE}/devpi && devpi login $DEVPI_USR --password $DEVPI_PSW --clientdir ${WORKSPACE}/devpi
                                                devpi use /DS_Jenkins/${env.BRANCH_NAME}_staging --clientdir ./devpi"
                                                devpi push ${props.Name}==${props.Version} DS_Jenkins/${env.BRANCH_NAME} --clientdir ./devpi"""
+                                   )
                             }
                         }
                     }
