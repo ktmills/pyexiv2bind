@@ -455,12 +455,16 @@ pipeline {
                         timeout(10)
                     }
                     steps {
-                        sh "mkdir -p logs"
-                        sh 'python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace'
+                        sh '''mkdir -p logs
+                              python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace | tee logs/python_build.log
+                        '''
                     }
                     post{
                         success{
-                          stash includes: 'py3exiv2bind/**/*.dll,py3exiv2bind/**/*.pyd,py3exiv2bind/**/*.exe,py3exiv2bind/**/*.so,', name: "built_source"
+                            stash includes: 'py3exiv2bind/**/*.dll,py3exiv2bind/**/*.pyd,py3exiv2bind/**/*.exe,py3exiv2bind/**/*.so,', name: "built_source"
+                        }
+                        always{
+                            recordIssues(tools: [gcc(pattern: 'logs/python_build.log')])
                         }
                         failure{
                             cleanWs(
@@ -973,11 +977,10 @@ devpi upload --from-dir dist --clientdir ${WORKSPACE}/devpi"""
                                 unstash "DIST-INFO"
                                 def props = readProperties interpolate: true, file: 'py3exiv2bind.dist-info/METADATA'
                                 sh(
-                                    label: "Connecting to DevPi Server",
-                                    script: 'devpi use https://devpi.library.illinois.edu --clientdir ${WORKSPACE}/devpi && devpi login $DEVPI_USR --password $DEVPI_PSW --clientdir ${WORKSPACE}/devpi'
-                                )
-                                sh "devpi use /DS_Jenkins/${env.BRANCH_NAME}_staging --clientdir ${WORKSPACE}/devpi"
-                                sh "devpi push ${props.Name}==${props.Version} DS_Jenkins/${env.BRANCH_NAME} --clientdir ${WORKSPACE}/devpi"
+                                    label: "Pushing to DS_Jenkins/${env.BRANCH_NAME} index",
+                                    script: """devpi use https://devpi.library.illinois.edu --clientdir ${WORKSPACE}/devpi && devpi login $DEVPI_USR --password $DEVPI_PSW --clientdir ${WORKSPACE}/devpi
+                                               devpi use /DS_Jenkins/${env.BRANCH_NAME}_staging --clientdir ./devpi"
+                                               devpi push ${props.Name}==${props.Version} DS_Jenkins/${env.BRANCH_NAME} --clientdir ./devpi"""
                             }
                         }
                     }
