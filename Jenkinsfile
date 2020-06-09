@@ -465,6 +465,7 @@ pipeline {
                         }
                         always{
                             recordIssues(tools: [gcc(pattern: 'logs/python_build.log')])
+                            archiveArtifacts allowEmptyArchive: true, artifacts: "logs/python_build.log"
                         }
                         failure{
                             cleanWs(
