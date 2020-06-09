@@ -455,13 +455,20 @@ pipeline {
                         timeout(10)
                     }
                     steps {
-                        sh "mkdir -p logs"
-                        sh 'python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace'
+//                         sh "mkdir -p logs"
+//                         sh 'python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace'
+                          sh('''mkdir -p logs
+                                python setup.py build -b build --build-lib build/lib/ --build-temp build/temp build_ext -j $(grep -c ^processor /proc/cpuinfo) --inplace | tee logs/python_build.log
+                                '''
+                            )
                     }
                     post{
                         success{
                           stash includes: 'py3exiv2bind/**/*.dll,py3exiv2bind/**/*.pyd,py3exiv2bind/**/*.exe,py3exiv2bind/**/*.so,', name: "built_source"
                         }
+                        always{
+                            recordIssues(tools: [gcc(pattern: 'logs/python_build.log')])
+                       }
                         failure{
                             cleanWs(
                                 deleteDirs: true,
