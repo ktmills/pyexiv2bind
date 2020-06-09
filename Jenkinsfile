@@ -464,7 +464,7 @@ pipeline {
                           stash includes: 'py3exiv2bind/**/*.dll,py3exiv2bind/**/*.pyd,py3exiv2bind/**/*.exe,py3exiv2bind/**/*.so,', name: "built_source"
                         }
                         always{
-                            recordIssues(filters: [excludePackage('build/')], sourceDirectory: 'py3exiv2bind', tools: [gcc(pattern: 'logs/python_build.log')])
+                            recordIssues(filters: [excludeFile('build/*')], tools: [gcc(pattern: 'logs/python_build.log')])
                             archiveArtifacts allowEmptyArchive: true, artifacts: "logs/python_build.log"
                         }
                         failure{
